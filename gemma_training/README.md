@@ -131,6 +131,8 @@ python test_examples.py
 ```
 This runs 22 example sentences and prints PASS or FAIL for each, then a summary. Twelve come from the training CSV; ten are new sentences whose expected answers are a best guess, so a FAIL there can be a wrong expectation (this is written at the top of the file).
 
+Other computers on the same Wi-Fi: `python app.py --lan` prints an address like http://192.168.x.x:7860 for them to open (allow Python in the Windows firewall prompt).
+
 Options: `--adapter D:\path\to\gemma_cpu_lora` (adapter in another place), `python test_examples.py --lookup-only` (no model, checks only which sentences reach the model), `--fake` on either script (a stand-in that is **not** Gemma, only to check the page and script without an adapter). The first run downloads the base model `unsloth/gemma-3-270m-it` (needs internet), and if `data/config.json` is missing it assumes the `<hg>` tag was used with `--tag_mode before`.
 
 The trained words are only: আসর, আসরে, আসরের, আসল, কর, করাত, কেন, কেবলা. Other homographs are not looked up.
