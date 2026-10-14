@@ -12,6 +12,7 @@ Run:  python prepare_data.py --wiki 1500
       python prepare_data.py --smoke                          (code check: tiny data, no internet needed)
       python prepare_data.py --smoke --only "কাশ,চট,শিখ,মত,হল"  (exactly these words + built-in plain sentences)
       python prepare_data.py --wiki 1500 --tag "<hg>" --tag_mode trigger   (tag anywhere in the sentence)
+      python prepare_data.py --wiki 1500 --tag "<hg>" --tag_mode before    (tag right before the homograph: "যাচ্ছ <hg>কেন?")
       python prepare_data.py --wiki 1500 --tag "<hg>" --tag_mode mark      (tag wraps the homograph word)
 The tag settings are saved in data/config.json, and train/evaluate/run_local read them from there.
 """
@@ -51,10 +52,32 @@ def homograph_words():
     return words
 
 
-def add_tag(sentence, homograph, tag, mode, rnd):
+def homograph_position(sentence, target, homograph):
+    """Index of the homograph word: the word that changes between input and target,
+    or (when nothing changes, e.g. কর -> কর) the first word that equals the homograph."""
+    words, tgt = sentence.split(), target.split()
+    if len(words) == len(tgt):
+        for i, (w, t) in enumerate(zip(words, tgt)):
+            if w != t:
+                return i
+    for i, w in enumerate(words):
+        if w.strip(PUNCT) == homograph:
+            return i
+    return None
+
+
+def add_tag(sentence, homograph, tag, mode, rnd, target=""):
     """trigger: put the tag at a random word gap (start, middle or end).
+    before: put the tag directly in front of the homograph word, e.g. "যাচ্ছ <hg>কেন?" (once).
     mark: wrap every copy of the homograph word as <hg>word</hg> (punctuation stays outside)."""
     words = sentence.split()
+    if mode == "before":
+        i = homograph_position(sentence, target or sentence, homograph)
+        if i is not None:
+            core = words[i].strip(PUNCT)
+            start = words[i].index(core) if core else 0
+            words[i] = words[i][:start] + tag + words[i][start:]
+        return " ".join(words)
     if mode == "trigger":
         words.insert(rnd.randint(0, len(words)), tag)
         return " ".join(words)
@@ -149,7 +172,7 @@ def main():
     ap.add_argument("--out_dir", default=str(HERE / "data"))
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--tag", default="", help='e.g. "<hg>". Avoid . , ! / @ (they appear in normal text)')
-    ap.add_argument("--tag_mode", choices=["trigger", "mark"], default="trigger")
+    ap.add_argument("--tag_mode", choices=["trigger", "before", "mark"], default="trigger")
     ap.add_argument("--words", type=int, default=0, help="quick test: use only this many homograph words (e.g. 12)")
     ap.add_argument("--only", default="", help='exact words to use, comma separated, e.g. "কাশ,চট,শিখ,মত,হল"')
     ap.add_argument("--smoke", action="store_true", help="code check: 3 words + built-in plain sentences, no download")
@@ -247,7 +270,23 @@ def main():
         for rows in split.values():
             for r in rows:
                 if a.tag_mode == "trigger" or r["kind"] == "homograph":
-                    r["input"] = add_tag(r["input"], r["word"], a.tag, a.tag_mode, rnd)
+                    r["input"] = add_tag(r["input"], r["word"], a.tag, a.tag_mode, rnd, r["output"])
+        # check: every homograph row has the tag exactly once, plain rows have none, outputs never have it
+        if a.tag_mode == "before":
+            bad, ok = [], 0
+            for name, rows in split.items():
+                for r in rows:
+                    n = r["input"].count(a.tag)
+                    want = 1 if r["kind"] == "homograph" else 0
+                    if n != want or a.tag in r["output"]:
+                        bad.append((name, r["input"]))
+                    elif want:
+                        ok += 1
+            print(f"tag check: {ok} homograph rows tagged exactly once, {len(bad)} problems")
+            for name, s in bad[:5]:
+                print(f"  PROBLEM ({name}): {s}")
+            for r in [r for r in split["train"] if r["kind"] == "homograph"][:3]:
+                print(f"  example: {r['input']}  ->  {r['output']}")
 
     leak = {r["input"] for r in split["train"]} & {r["input"] for r in split["test"]}
     print(f"check: {len(leak)} test sentences also appear in training (should be 0)")
@@ -263,7 +302,14 @@ def main():
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
         h = sum(r["kind"] == "homograph" for r in rows)
         print(f"{name:5s}: {len(rows):5d} rows  ({h} homograph, {len(rows) - h} plain)")
-    print(f"written to {out}")
+    # the same data as one table you can open in Excel (UTF-8 with BOM so Bangla shows correctly)
+    with open(out / "dataset_view.csv", "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["split", "homograph_word", "input_with_hg_tag", "target", "tagged"])
+        for name, rows in split.items():
+            for r in rows:
+                w.writerow([name, r["word"], r["input"], r["output"], "yes" if a.tag and a.tag in r["input"] else "no"])
+    print(f"written to {out}  (open dataset_view.csv in Excel to see the inputs and targets)")
 
 
 if __name__ == "__main__":

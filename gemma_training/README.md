@@ -142,7 +142,7 @@ python prepare_data.py --wiki 1500
 ```
 
 This reads `tts_readiness/train_ready_rows.csv` (1,880 checked sentences, 95 words), keeps 15% of every word's sentences aside for testing, and adds 1,500 plain sentences from Bangla Wikipedia that contain no homograph. You get `data/train.jsonl`, `data/val.jsonl` and `data/test.jsonl`.
-Want a tag in the sentence (for example `<hg>`)? Add `--tag "<hg>" --tag_mode trigger` (tag anywhere) or `--tag_mode mark` (tag around the homograph word). Avoid `. , ! / @` as tags. Full explanation in Bangla: [TAG_GUIDE_bn.md](TAG_GUIDE_bn.md).
+Want a tag in the sentence (for example `<hg>`)? Add `--tag "<hg>" --tag_mode trigger` (tag anywhere), `--tag_mode before` (tag right before the homograph, e.g. `যাচ্ছ <hg>কেন?`) or `--tag_mode mark` (tag around the homograph word). Avoid `. , ! / @` as tags. Full explanation in Bangla: [TAG_GUIDE_bn.md](TAG_GUIDE_bn.md).
 Have your own plain sentences? Use `--plain_file my_sentences.txt` (one per line) instead of, or as well as, `--wiki`.
 
 ### Step 3. Train

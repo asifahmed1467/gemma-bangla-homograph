@@ -22,8 +22,8 @@ _cfg = _json.loads(_cfg_path.read_text(encoding="utf-8")) if _cfg_path.exists() 
 TAG = _cfg.get("tag", "")
 TAG_MODE = _cfg.get("tag_mode", "")
 
-if TAG_MODE == "trigger":
-    # the tag itself is the signal, so the long instruction is not needed
+if TAG_MODE in ("trigger", "before"):
+    # the tag itself is the signal (before: it sits right in front of the word to respell), so the long instruction is not needed
     INSTRUCTION = ""
 elif TAG_MODE == "mark":
     _close = TAG.replace("<", "</", 1) if TAG.startswith("<") else TAG
