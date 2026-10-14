@@ -2,6 +2,7 @@ r"""Run a list of example sentences through the same path as app.py and print PA
 
 Run:  python test_examples.py                        (real model, adapter folder gemma_cpu_lora)
       python test_examples.py --adapter D:\path\to\gemma_cpu_lora
+      python test_examples.py --sentence "আমি কেন যাব?"   (one sentence of your own, no PASS/FAIL)
       python test_examples.py --lookup-only          (no model: only checks the word lookup and tagging)
       python test_examples.py --fake                 (stand-in instead of Gemma, to check this script itself)
 
@@ -47,6 +48,7 @@ EXAMPLES = [
 ap = argparse.ArgumentParser()
 ap.add_argument("--adapter", default="gemma_cpu_lora", help="folder made by train_cpu.py")
 ap.add_argument("--words", default=str(WORDS_CSV))
+ap.add_argument("--sentence", help="run just this one sentence and print the result")
 ap.add_argument("--lookup-only", action="store_true", help="no model: check only which sentences would reach the model")
 ap.add_argument("--fake", action="store_true", help="stand-in instead of Gemma (checks this script, not the model)")
 a = ap.parse_args()
@@ -55,6 +57,14 @@ words, said = load_words(a.words)
 generate = (lambda t: t) if a.lookup_only else get_generate(a.adapter, a.fake, said)
 if a.fake:
     print("NOTE: --fake is a stand-in, not Gemma. These results say nothing about the trained model.\n")
+
+if a.sentence:
+    r = fix_sentence(a.sentence, words, generate)
+    print("input  :", r["input"])
+    print("tagged :", r["tagged"])
+    print("called :", "yes (found: " + ", ".join(r["found"]) + ")" if r["called_model"] else "no (no listed word)")
+    print("output :", r["output"])
+    sys.exit(0)
 
 stats = {"csv": [0, 0], "guess": [0, 0]}
 bad_call = 0
