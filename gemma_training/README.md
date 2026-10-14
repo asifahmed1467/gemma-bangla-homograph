@@ -109,6 +109,32 @@ This trains on a small part of the data, so the whole check takes well under an 
 
 When the quick test looks good, run the FULL lines in notebook steps 4 and 6.
 
+## Try the trained model: web page and example tests
+
+Both use the adapter folder `gemma_cpu_lora` made by `train_cpu.py`. It is not in this repo (it only exists on the PC that trained it), so copy that folder into `gemma_training/` next to `app.py`, or pass its path with `--adapter`.
+
+They follow the plan: look for a word from `my_words_8.csv` in the sentence, put `<hg>` directly in front of it, and call the model **only** if one was found. A sentence with no listed word comes back unchanged and the model is not called. The lookup is in `homograph_lookup.py`, shared by both.
+
+**Windows, step by step** (open Command Prompt):
+```bat
+cd gemma_training
+py -m venv venv
+venv\Scripts\activate
+pip install -r requirements_cpu.txt
+
+python app.py
+```
+Then open http://127.0.0.1:7860 in your browser, type a sentence and press Run. The page shows the input sent to the model, the output, and whether the model was called. Stop it with Ctrl+C.
+
+```bat
+python test_examples.py
+```
+This runs 22 example sentences and prints PASS or FAIL for each, then a summary. Twelve come from the training CSV; ten are new sentences whose expected answers are a best guess, so a FAIL there can be a wrong expectation (this is written at the top of the file).
+
+Options: `--adapter D:\path\to\gemma_cpu_lora` (adapter in another place), `python test_examples.py --lookup-only` (no model, checks only which sentences reach the model), `--fake` on either script (a stand-in that is **not** Gemma, only to check the page and script without an adapter). The first run downloads the base model `unsloth/gemma-3-270m-it` (needs internet), and if `data/config.json` is missing it assumes the `<hg>` tag was used with `--tag_mode before`.
+
+The trained words are only: আসর, আসরে, আসরের, আসল, কর, করাত, কেন, কেবলা. Other homographs are not looked up.
+
 ## What you need
 
 | Thing | Needed |
