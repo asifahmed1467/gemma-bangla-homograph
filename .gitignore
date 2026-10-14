@@ -1,0 +1,17 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+data/
+gemma_cpu_lora/
+smoke_lora/
+gemma_lora/
+checkpoints/
+outputs/
+*.safetensors
+*.bin
+*.gguf
+*.pt
+*.onnx
+predictions*.csv
+local_*.csv
