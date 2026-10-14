@@ -2,9 +2,12 @@ r"""Run a list of example sentences through the same path as app.py and print PA
 
 Run:  python test_examples.py                        (real model, adapter folder gemma_cpu_lora)
       python test_examples.py --adapter D:\path\to\gemma_cpu_lora
-      python test_examples.py --sentence "আমি কেন যাব?"   (one sentence of your own, no PASS/FAIL)
+      python test_examples.py --sentence "আমি কেন যাব?"   (one sentence of your own, no PASS/FAIL; with no listed word plain Gemma answers it)
       python test_examples.py --lookup-only          (no model: only checks the word lookup and tagging)
       python test_examples.py --fake                 (stand-in instead of Gemma, to check this script itself)
+
+The 22-example table checks only the rewriting path (plain-Gemma chat is not used there, so sentences without a
+listed word must come back unchanged). Plain-Gemma chat is used by app.py and by --sentence.
 
 Expected answers follow the training CSV (my_words_8.csv): the homograph word is replaced by its
 bangla_phoneme spelling for that reading (e.g. কেন "why" -> ক্যানো, কেন "buys" -> কেনো); readings that are
@@ -14,7 +17,7 @@ Rows marked "guess" are NEW sentences: the expected answer is the author's best 
 A FAIL on a "guess" row can be a wrong expectation, not a wrong model.
 """
 import argparse, sys
-from homograph_lookup import WORDS_CSV, load_words, fix_sentence, get_generate
+from homograph_lookup import WORDS_CSV, load_words, fix_sentence, get_models
 
 # (source, sentence, expected output, should the model be called?)
 EXAMPLES = [
@@ -54,15 +57,17 @@ ap.add_argument("--fake", action="store_true", help="stand-in instead of Gemma (
 a = ap.parse_args()
 
 words, said = load_words(a.words)
-generate = (lambda t: t) if a.lookup_only else get_generate(a.adapter, a.fake, said)
+generate, chat = ((lambda t: t), None) if a.lookup_only else get_models(a.adapter, a.fake, said)
 if a.fake:
     print("NOTE: --fake is a stand-in, not Gemma. These results say nothing about the trained model.\n")
 
 if a.sentence:
-    r = fix_sentence(a.sentence, words, generate)
+    r = fix_sentence(a.sentence, words, generate, chat)
     print("input  :", r["input"])
     print("tagged :", r["tagged"])
-    print("called :", "yes (found: " + ", ".join(r["found"]) + ")" if r["called_model"] else "no (no listed word)")
+    print("path   :", {"rewrite": "homograph found (" + ", ".join(r["found"]) + ") -> fine-tuned adapter",
+                       "chat": "no listed word -> adapter off, plain Gemma chat",
+                       "unchanged": "no listed word, nothing to do"}[r["mode"]])
     print("output :", r["output"])
     sys.exit(0)
 

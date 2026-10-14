@@ -15,9 +15,8 @@ from prepare_data import PUNCT, nfc
 HERE = Path(__file__).resolve().parent
 WORDS_CSV = HERE / "my_words_8.csv"      # the words the adapter was trained on
 TAG = common.TAG or "<hg>"               # data/config.json (written by prepare_data.py) wins if it exists
-if not common.TAG_MODE:
-    # no data/config.json next to the scripts: use the same prompt that "--tag_mode before" training used
-    common.INSTRUCTION = ""
+# The prompt comes from common.py (+ data/config.json), exactly as in training, so use the same common.py
+# the adapter was trained with. No config.json = no data/ folder: the tag stays <hg> and the prompt is common.py's default.
 
 
 def load_words(path=WORDS_CSV):
@@ -47,7 +46,9 @@ def tag_sentence(sentence, words, tag=TAG):
 
 
 def load_model(adapter="gemma_cpu_lora", base="unsloth/gemma-3-270m-it"):
-    """Gemma + LoRA adapter on CPU -> function(tagged_sentence) -> model answer."""
+    """Gemma + LoRA adapter on CPU -> (rewrite, chat).
+    rewrite(tagged_sentence): the fine-tuned model, answers with the respelled sentence.
+    chat(text): the SAME loaded model with the adapter switched off = plain Gemma answering normally."""
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from peft import PeftModel
@@ -67,7 +68,15 @@ def load_model(adapter="gemma_cpu_lora", base="unsloth/gemma-3-270m-it"):
                                             return_tensors="pt", return_dict=True)
         out = model.generate(**enc, max_new_tokens=128, do_sample=False)
         return tokenizer.decode(out[0][enc["input_ids"].shape[1]:], skip_special_tokens=True).strip()
-    return generate
+
+    @torch.no_grad()
+    def chat(text):
+        enc = tokenizer.apply_chat_template([{"role": "user", "content": text}], add_generation_prompt=True,
+                                            return_tensors="pt", return_dict=True)
+        with model.disable_adapter():
+            out = model.generate(**enc, max_new_tokens=200, do_sample=False, repetition_penalty=1.1)
+        return tokenizer.decode(out[0][enc["input_ids"].shape[1]:], skip_special_tokens=True).strip()
+    return generate, chat
 
 
 def load_answers(path=WORDS_CSV):
@@ -80,6 +89,11 @@ def load_answers(path=WORDS_CSV):
             src = " ".join(word.join(t.rsplit(said, 1)) if t.strip(PUNCT) == said else t for t in tgt.split())
             answers[src] = tgt
     return answers
+
+
+def fake_chat(text):
+    """STAND-IN for plain Gemma (used with --fake)."""
+    return "[stand-in chat answer] " + text
 
 
 def fake_model(said, answers=None):
@@ -102,15 +116,22 @@ def fake_model(said, answers=None):
     return generate
 
 
-def fix_sentence(sentence, words, generate, tag=TAG):
-    """The whole pipeline. -> dict(input, found, tagged, called_model, output)."""
+def fix_sentence(sentence, words, generate, chat=None, tag=TAG):
+    """The whole pipeline. -> dict(input, found, tagged, called_model, mode, output).
+    mode: "rewrite" (homograph found, fine-tuned model), "chat" (none found, plain Gemma answers),
+    "unchanged" (none found and no chat model given: sentence returned as it is)."""
     sentence = nfc(sentence)
     tagged, found = tag_sentence(sentence, words, tag)
-    if not found:
-        return {"input": sentence, "found": [], "tagged": sentence, "called_model": False, "output": sentence}
-    return {"input": sentence, "found": found, "tagged": tagged, "called_model": True,
-            "output": strip_tags(generate(tagged))}
+    if found:
+        return {"input": sentence, "found": found, "tagged": tagged, "called_model": True, "mode": "rewrite",
+                "output": strip_tags(generate(tagged))}
+    if chat and sentence:
+        return {"input": sentence, "found": [], "tagged": sentence, "called_model": True, "mode": "chat",
+                "output": chat(sentence)}
+    return {"input": sentence, "found": [], "tagged": sentence, "called_model": False, "mode": "unchanged",
+            "output": sentence}
 
 
-def get_generate(adapter, fake, said):
-    return fake_model(said) if fake else load_model(adapter)
+def get_models(adapter, fake, said):
+    """-> (rewrite, chat)"""
+    return (fake_model(said), fake_chat) if fake else load_model(adapter)
