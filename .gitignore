@@ -15,3 +15,5 @@ outputs/
 *.onnx
 predictions*.csv
 local_*.csv
+sahajbert/model/
+sahajbert/data/processed.csv

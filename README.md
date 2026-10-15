@@ -1,4 +1,44 @@
-# Gemma Bangla Homograph
+# Bangla Homograph Pronunciation (Gemma and sahajBERT)
+
+This repo holds two models. You pick one by configuration, not by editing code.
+
+## Pick a model
+
+- `gemma_training/` is the Gemma LoRA model (rewrites the sentence).
+- `sahajbert/` is the sahajBERT classifier (picks pronunciation 1 or 2 for 8 words). It has its own `config.json` (epochs, batch size and so on) and its own data.
+- Top-level `config.json` chooses the model:
+
+```json
+{ "model": "gemma" }
+```
+
+Change it to `"sahajbert"`, or override it with the environment variable `HG_MODEL` (it wins over the file). The sahajBERT settings can be overridden the same way with `HG_<KEY>` (for example `HG_EPOCHS`).
+
+Easiest: run the menu from the repo folder and type 1 to choose the model.
+
+```bat
+py -m venv venv
+venv\Scripts\activate
+pip install -r gemma_training\requirements_cpu.txt
+pip install -r sahajbert\requirements.txt
+python run.py
+```
+
+One-time override in Windows cmd:
+
+```bat
+set HG_MODEL=sahajbert
+python run.py
+set HG_MODEL=
+```
+
+PowerShell: `$env:HG_MODEL="sahajbert"` and `Remove-Item Env:HG_MODEL`.
+
+The two models use different data formats on purpose; each reads its own files. Each model folder still works on its own, as described below and in its own README.
+
+---
+
+## Gemma part
 
 LoRA fine-tuning of Gemma 3 270M to rewrite Bangla sentences so homographs get the right pronunciation for TTS.
 
